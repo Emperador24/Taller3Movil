@@ -12,13 +12,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.taller3samuelemperador.model.User
 import com.example.taller3samuelemperador.ui.viewmodel.MapViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
@@ -30,6 +33,7 @@ fun MapScreen(
     onLogout: () -> Unit,
     viewModel: MapViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val locationPermissionsState = rememberMultiplePermissionsState(
         permissions = listOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -59,9 +63,11 @@ fun MapScreen(
     LaunchedEffect(currentUser?.latitude, currentUser?.longitude) {
         currentUser?.let { user ->
             if (user.latitude != 0.0 && user.longitude != 0.0) {
-                cameraPositionState.position = CameraPosition.fromLatLngZoom(
-                    LatLng(user.latitude, user.longitude),
-                    15f
+                cameraPositionState.animate(
+                    CameraUpdateFactory.newLatLngZoom(
+                        LatLng(user.latitude, user.longitude),
+                        15f
+                    )
                 )
             }
         }
@@ -88,12 +94,13 @@ fun MapScreen(
                     modifier = Modifier.fillMaxSize(),
                     cameraPositionState = cameraPositionState,
                     properties = MapProperties(
-                        isMyLocationEnabled = isLocationEnabled,
+                        isMyLocationEnabled = isLocationEnabled && locationPermissionsState.permissions.any { it.status.isGranted },
                         mapType = MapType.NORMAL
                     ),
                     uiSettings = MapUiSettings(
                         zoomControlsEnabled = true,
-                        myLocationButtonEnabled = true
+                        myLocationButtonEnabled = true,
+                        compassEnabled = true
                     )
                 ) {
                     // Marcador del usuario actual

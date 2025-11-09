@@ -10,6 +10,8 @@ import com.google.android.gms.location.*
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 class LocationManager(private val context: Context) {
 
@@ -63,14 +65,18 @@ class LocationManager(private val context: Context) {
     suspend fun getCurrentLocation(): Location? {
         if (!hasLocationPermission()) return null
 
-        return try {
-            val location = fusedLocationClient.lastLocation
-            location.addOnSuccessListener { loc ->
-                return@addOnSuccessListener
+        return suspendCancellableCoroutine { continuation ->
+            try {
+                fusedLocationClient.lastLocation
+                    .addOnSuccessListener { location: Location? ->
+                        continuation.resume(location)
+                    }
+                    .addOnFailureListener {
+                        continuation.resume(null)
+                    }
+            } catch (e: SecurityException) {
+                continuation.resume(null)
             }
-            null
-        } catch (e: SecurityException) {
-            null
         }
     }
 }

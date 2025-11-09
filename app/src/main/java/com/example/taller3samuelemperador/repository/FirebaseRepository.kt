@@ -1,6 +1,7 @@
 package com.example.taller3samuelemperador.repository
 
 import android.net.Uri
+import android.util.Log
 import com.example.taller3samuelemperador.model.User
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -20,6 +21,10 @@ class FirebaseRepository {
 
     val currentUser: FirebaseUser?
         get() = auth.currentUser
+
+    companion object {
+        private const val TAG = "FirebaseRepository"
+    }
 
     // Registro de usuario
     suspend fun registerUser(
@@ -43,6 +48,7 @@ class FirebaseRepository {
             usersRef.child(uid).setValue(user.toMap()).await()
             Result.success(user)
         } catch (e: Exception) {
+            Log.e(TAG, "Error registering user", e)
             Result.failure(e)
         }
     }
@@ -63,24 +69,30 @@ class FirebaseRepository {
 
             Result.success(user)
         } catch (e: Exception) {
+            Log.e(TAG, "Error logging in", e)
             Result.failure(e)
         }
     }
 
     // Cerrar sesión
     suspend fun logoutUser() {
-        currentUser?.uid?.let { uid ->
-            updateUserOnlineStatus(uid, false)
+        try {
+            currentUser?.uid?.let { uid ->
+                updateUserOnlineStatus(uid, false)
+            }
+            auth.signOut()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error logging out", e)
         }
-        auth.signOut()
     }
 
     // Actualizar estado online
     suspend fun updateUserOnlineStatus(uid: String, isOnline: Boolean) {
         try {
             usersRef.child(uid).child("isOnline").setValue(isOnline).await()
+            Log.d(TAG, "Updated online status for $uid: $isOnline")
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Error updating online status", e)
         }
     }
 
@@ -93,8 +105,9 @@ class FirebaseRepository {
                 "timestamp" to System.currentTimeMillis()
             )
             usersRef.child(uid).updateChildren(updates).await()
+            Log.d(TAG, "Updated location for $uid: ($latitude, $longitude)")
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Error updating location", e)
         }
     }
 
@@ -112,6 +125,7 @@ class FirebaseRepository {
             usersRef.child(uid).updateChildren(updates).await()
             Result.success(Unit)
         } catch (e: Exception) {
+            Log.e(TAG, "Error updating profile", e)
             Result.failure(e)
         }
     }
@@ -122,6 +136,7 @@ class FirebaseRepository {
             currentUser?.updatePassword(newPassword)?.await()
             Result.success(Unit)
         } catch (e: Exception) {
+            Log.e(TAG, "Error changing password", e)
             Result.failure(e)
         }
     }
@@ -136,6 +151,7 @@ class FirebaseRepository {
             usersRef.child(uid).child("profileImageUrl").setValue(downloadUrl).await()
             Result.success(downloadUrl)
         } catch (e: Exception) {
+            Log.e(TAG, "Error uploading profile image", e)
             Result.failure(e)
         }
     }
@@ -147,6 +163,7 @@ class FirebaseRepository {
             val snapshot = usersRef.child(uid).get().await()
             snapshot.getValue(User::class.java)
         } catch (e: Exception) {
+            Log.e(TAG, "Error getting current user", e)
             null
         }
     }
@@ -162,12 +179,17 @@ class FirebaseRepository {
 
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val user = snapshot.getValue(User::class.java)
-                trySend(user)
+                try {
+                    val user = snapshot.getValue(User::class.java)
+                    trySend(user)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error in onDataChange", e)
+                }
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                Log.e(TAG, "Database error: ${error.message}", error.toException())
+                // No cerrar el flow, solo loguear el error
             }
         }
 
@@ -182,19 +204,24 @@ class FirebaseRepository {
     fun observeOnlineUsers(): Flow<List<User>> = callbackFlow {
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val users = mutableListOf<User>()
-                snapshot.children.forEach { child ->
-                    child.getValue(User::class.java)?.let { user ->
-                        if (user.isOnline && user.uid != currentUser?.uid) {
-                            users.add(user)
+                try {
+                    val users = mutableListOf<User>()
+                    snapshot.children.forEach { child ->
+                        child.getValue(User::class.java)?.let { user ->
+                            if (user.isOnline && user.uid != currentUser?.uid) {
+                                users.add(user)
+                            }
                         }
                     }
+                    trySend(users)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error processing online users", e)
                 }
-                trySend(users)
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                Log.e(TAG, "Database error: ${error.message}", error.toException())
+                // No cerrar el flow, solo loguear el error
             }
         }
 

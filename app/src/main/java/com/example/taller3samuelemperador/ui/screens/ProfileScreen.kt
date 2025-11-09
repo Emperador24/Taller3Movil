@@ -1,6 +1,5 @@
 package com.example.taller3samuelemperador.ui.screens
 
-import android.Manifest
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,10 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.taller3samuelemperador.ui.viewmodel.ProfileViewModel
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.rememberPermissionState
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     onNavigateBack: () -> Unit,
@@ -45,13 +42,13 @@ fun ProfileScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showPasswordDialog by remember { mutableStateOf(false) }
 
-    val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
-
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
             isLoading = true
+            errorMessage = null
+            successMessage = null
             viewModel.uploadProfileImage(it) { result ->
                 isLoading = false
                 result.onSuccess {
@@ -68,6 +65,15 @@ fun ProfileScreen(
         currentUser?.let { user ->
             name = user.name
             phone = user.phone
+        }
+    }
+
+    // Limpiar mensajes después de 3 segundos
+    LaunchedEffect(successMessage, errorMessage) {
+        if (successMessage != null || errorMessage != null) {
+            kotlinx.coroutines.delay(3000)
+            successMessage = null
+            errorMessage = null
         }
     }
 
@@ -98,7 +104,9 @@ fun ProfileScreen(
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primaryContainer)
                     .clickable {
-                        imagePickerLauncher.launch("image/*")
+                        if (!isLoading) {
+                            imagePickerLauncher.launch("image/*")
+                        }
                     },
                 contentAlignment = Alignment.Center
             ) {
@@ -117,20 +125,27 @@ fun ProfileScreen(
                     )
                 }
 
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CameraAlt,
-                        contentDescription = "Cambiar foto",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(16.dp)
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(40.dp),
+                        color = MaterialTheme.colorScheme.primary
                     )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = "Cambiar foto",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
 
@@ -151,7 +166,8 @@ fun ProfileScreen(
                 label = { Text("Nombre") },
                 leadingIcon = { Icon(Icons.Default.Person, null) },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                enabled = !isLoading
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -163,7 +179,8 @@ fun ProfileScreen(
                 leadingIcon = { Icon(Icons.Default.Phone, null) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                enabled = !isLoading
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -180,20 +197,34 @@ fun ProfileScreen(
 
             if (successMessage != null) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = successMessage!!,
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Text(
+                        text = successMessage!!,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
             }
 
             if (errorMessage != null) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = errorMessage!!,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Text(
+                        text = errorMessage!!,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -231,7 +262,8 @@ fun ProfileScreen(
 
             OutlinedButton(
                 onClick = { showPasswordDialog = true },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isLoading
             ) {
                 Icon(Icons.Default.Lock, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
@@ -280,7 +312,11 @@ fun ProfileScreen(
     // Diálogo para cambiar contraseña
     if (showPasswordDialog) {
         AlertDialog(
-            onDismissRequest = { showPasswordDialog = false },
+            onDismissRequest = {
+                showPasswordDialog = false
+                newPassword = ""
+                passwordVisible = false
+            },
             title = { Text("Cambiar Contraseña") },
             text = {
                 Column {
@@ -321,8 +357,12 @@ fun ProfileScreen(
                                     successMessage = "Contraseña actualizada"
                                     showPasswordDialog = false
                                     newPassword = ""
+                                    passwordVisible = false
                                 }.onFailure { error ->
                                     errorMessage = error.message ?: "Error al cambiar contraseña"
+                                    showPasswordDialog = false
+                                    newPassword = ""
+                                    passwordVisible = false
                                 }
                             }
                         }
@@ -336,6 +376,7 @@ fun ProfileScreen(
                 TextButton(onClick = {
                     showPasswordDialog = false
                     newPassword = ""
+                    passwordVisible = false
                 }) {
                     Text("CANCELAR")
                 }
