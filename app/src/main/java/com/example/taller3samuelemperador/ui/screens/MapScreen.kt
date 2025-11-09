@@ -1,6 +1,12 @@
 package com.example.taller3samuelemperador.ui.screens
 
 import android.Manifest
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.Rect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -14,17 +20,25 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
 import com.example.taller3samuelemperador.model.User
 import com.example.taller3samuelemperador.ui.viewmodel.MapViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.BitmapDescriptor
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -45,11 +59,98 @@ fun MapScreen(
     val onlineUsers by viewModel.onlineUsers.collectAsState()
     val isLocationEnabled by viewModel.isLocationEnabled.collectAsState()
 
+    // Cache de íconos personalizados
+    var userMarkerIcons by remember { mutableStateOf<Map<String, BitmapDescriptor>>(emptyMap()) }
+    var currentUserIcon by remember { mutableStateOf<BitmapDescriptor?>(null) }
+
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(
             LatLng(4.6097, -74.0817), // Bogotá por defecto
             12f
         )
+    }
+
+    // Función para crear marcador circular con imagen
+    suspend fun createMarkerIconFromUrl(imageUrl: String, borderColor: Int): BitmapDescriptor? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val request = ImageRequest.Builder(context)
+                    .data(imageUrl)
+                    .size(120, 120)
+                    .build()
+
+                val result = context.imageLoader.execute(request)
+                if (result is SuccessResult) {
+                    val bitmap = result.drawable.toBitmap(120, 120, Bitmap.Config.ARGB_8888)
+                    val circularBitmap = getCircularBitmapWithBorder(bitmap, borderColor)
+                    withContext(Dispatchers.Main) {
+                        BitmapDescriptorFactory.fromBitmap(circularBitmap)
+                    }
+                } else {
+                    null
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
+    }
+
+    // Función para crear bitmap circular con borde
+    fun getCircularBitmapWithBorder(bitmap: Bitmap, borderColor: Int): Bitmap {
+        val size = 120
+        val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+
+        val paint = Paint().apply {
+            isAntiAlias = true
+        }
+
+        // Dibujar círculo de fondo blanco
+        paint.color = android.graphics.Color.WHITE
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+
+        // Recortar imagen en círculo
+        paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+        val rect = Rect(0, 0, bitmap.width, bitmap.height)
+        val rectF = android.graphics.RectF(8f, 8f, size - 8f, size - 8f)
+        canvas.drawOval(rectF, paint)
+        canvas.drawBitmap(bitmap, rect, rectF, paint)
+
+        // Dibujar borde
+        paint.xfermode = null
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 8f
+        paint.color = borderColor
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f - 4f, paint)
+
+        return output
+    }
+
+    // Cargar íconos de usuarios online
+    LaunchedEffect(onlineUsers) {
+        val newIcons = mutableMapOf<String, BitmapDescriptor>()
+        onlineUsers.forEach { user ->
+            if (user.profileImageUrl.isNotEmpty()) {
+                createMarkerIconFromUrl(
+                    user.profileImageUrl,
+                    android.graphics.Color.GREEN
+                )?.let { icon ->
+                    newIcons[user.uid] = icon
+                }
+            }
+        }
+        userMarkerIcons = newIcons
+    }
+
+    // Cargar ícono del usuario actual
+    LaunchedEffect(currentUser?.profileImageUrl) {
+        currentUser?.profileImageUrl?.takeIf { it.isNotEmpty() }?.let { imageUrl ->
+            currentUserIcon = createMarkerIconFromUrl(
+                imageUrl,
+                android.graphics.Color.BLUE
+            )
+        }
     }
 
     // Solicitar permisos de ubicación al iniciar
@@ -112,8 +213,8 @@ fun MapScreen(
                                 ),
                                 title = "Tú: ${user.name}",
                                 snippet = "Tu ubicación actual",
-                                icon = com.google.android.gms.maps.model.BitmapDescriptorFactory
-                                    .defaultMarker(com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_BLUE)
+                                icon = currentUserIcon ?: BitmapDescriptorFactory
+                                    .defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
                             )
                         }
                     }
@@ -127,8 +228,8 @@ fun MapScreen(
                                 ),
                                 title = user.name,
                                 snippet = "Online",
-                                icon = com.google.android.gms.maps.model.BitmapDescriptorFactory
-                                    .defaultMarker(com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_GREEN)
+                                icon = userMarkerIcons[user.uid] ?: BitmapDescriptorFactory
+                                    .defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
                             )
                         }
                     }
