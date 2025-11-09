@@ -70,35 +70,9 @@ fun MapScreen(
         )
     }
 
-    // Función para crear marcador circular con imagen
-    suspend fun createMarkerIconFromUrl(imageUrl: String, borderColor: Int): BitmapDescriptor? {
-        return withContext(Dispatchers.IO) {
-            try {
-                val request = ImageRequest.Builder(context)
-                    .data(imageUrl)
-                    .size(120, 120)
-                    .build()
-
-                val result = context.imageLoader.execute(request)
-                if (result is SuccessResult) {
-                    val bitmap = result.drawable.toBitmap(120, 120, Bitmap.Config.ARGB_8888)
-                    val circularBitmap = getCircularBitmapWithBorder(bitmap, borderColor)
-                    withContext(Dispatchers.Main) {
-                        BitmapDescriptorFactory.fromBitmap(circularBitmap)
-                    }
-                } else {
-                    null
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                null
-            }
-        }
-    }
-
     // Función para crear bitmap circular con borde
     fun getCircularBitmapWithBorder(bitmap: Bitmap, borderColor: Int): Bitmap {
-        val size = 120
+        val size = 160
         val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(output)
 
@@ -125,6 +99,32 @@ fun MapScreen(
         canvas.drawCircle(size / 2f, size / 2f, size / 2f - 4f, paint)
 
         return output
+    }
+
+    // Función para crear marcador circular con imagen
+    suspend fun createMarkerIconFromUrl(imageUrl: String, borderColor: Int): BitmapDescriptor? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val request = ImageRequest.Builder(context)
+                    .data(imageUrl)
+                    .size(120, 120)
+                    .build()
+
+                val result = context.imageLoader.execute(request)
+                if (result is SuccessResult) {
+                    val bitmap = result.drawable.toBitmap(120, 120, Bitmap.Config.ARGB_8888)
+                    val circularBitmap = getCircularBitmapWithBorder(bitmap, borderColor)
+                    withContext(Dispatchers.Main) {
+                        BitmapDescriptorFactory.fromBitmap(circularBitmap)
+                    }
+                } else {
+                    null
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
     }
 
     // Cargar íconos de usuarios online
