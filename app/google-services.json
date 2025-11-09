@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "750928509273",
+    "project_id": "taller3samuelemperador",
+    "storage_bucket": "taller3samuelemperador.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:750928509273:android:4ffd6bbeca5dd6855cf448",
+        "android_client_info": {
+          "package_name": "com.example.taller3samuelemperador"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAPapwooO-GCUgk6EtURbcL17RpyQWEEAQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

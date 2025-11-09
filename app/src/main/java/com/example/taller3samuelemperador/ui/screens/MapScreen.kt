@@ -1,0 +1,285 @@
+package com.example.taller3samuelemperador.ui.screens
+
+import android.Manifest
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import com.example.taller3samuelemperador.model.User
+import com.example.taller3samuelemperador.ui.viewmodel.MapViewModel
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.*
+
+@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
+@Composable
+fun MapScreen(
+    onNavigateToProfile: () -> Unit,
+    onLogout: () -> Unit,
+    viewModel: MapViewModel = viewModel()
+) {
+    val locationPermissionsState = rememberMultiplePermissionsState(
+        permissions = listOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+    )
+
+    val currentUser by viewModel.currentUser.collectAsState()
+    val onlineUsers by viewModel.onlineUsers.collectAsState()
+    val isLocationEnabled by viewModel.isLocationEnabled.collectAsState()
+
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(
+            LatLng(4.6097, -74.0817), // Bogotá por defecto
+            12f
+        )
+    }
+
+    // Solicitar permisos de ubicación al iniciar
+    LaunchedEffect(Unit) {
+        if (!locationPermissionsState.allPermissionsGranted) {
+            locationPermissionsState.launchMultiplePermissionRequest()
+        }
+    }
+
+    // Actualizar cámara cuando cambia la ubicación del usuario
+    LaunchedEffect(currentUser?.latitude, currentUser?.longitude) {
+        currentUser?.let { user ->
+            if (user.latitude != 0.0 && user.longitude != 0.0) {
+                cameraPositionState.position = CameraPosition.fromLatLngZoom(
+                    LatLng(user.latitude, user.longitude),
+                    15f
+                )
+            }
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Mapa en Tiempo Real") },
+                actions = {
+                    IconButton(onClick = onNavigateToProfile) {
+                        Icon(Icons.Default.Person, contentDescription = "Perfil")
+                    }
+                    IconButton(onClick = onLogout) {
+                        Icon(Icons.Default.Logout, contentDescription = "Cerrar sesión")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (locationPermissionsState.allPermissionsGranted) {
+                GoogleMap(
+                    modifier = Modifier.fillMaxSize(),
+                    cameraPositionState = cameraPositionState,
+                    properties = MapProperties(
+                        isMyLocationEnabled = isLocationEnabled,
+                        mapType = MapType.NORMAL
+                    ),
+                    uiSettings = MapUiSettings(
+                        zoomControlsEnabled = true,
+                        myLocationButtonEnabled = true
+                    )
+                ) {
+                    // Marcador del usuario actual
+                    currentUser?.let { user ->
+                        if (user.latitude != 0.0 && user.longitude != 0.0 && isLocationEnabled) {
+                            Marker(
+                                state = MarkerState(
+                                    position = LatLng(user.latitude, user.longitude)
+                                ),
+                                title = "Tú: ${user.name}",
+                                snippet = "Tu ubicación actual",
+                                icon = com.google.android.gms.maps.model.BitmapDescriptorFactory
+                                    .defaultMarker(com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_BLUE)
+                            )
+                        }
+                    }
+
+                    // Marcadores de otros usuarios online
+                    onlineUsers.forEach { user ->
+                        if (user.latitude != 0.0 && user.longitude != 0.0) {
+                            Marker(
+                                state = MarkerState(
+                                    position = LatLng(user.latitude, user.longitude)
+                                ),
+                                title = user.name,
+                                snippet = "Online",
+                                icon = com.google.android.gms.maps.model.BitmapDescriptorFactory
+                                    .defaultMarker(com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_GREEN)
+                            )
+                        }
+                    }
+                }
+
+                // Control de switch para ubicación
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(16.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surface,
+                            shape = MaterialTheme.shapes.medium
+                        )
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = if (isLocationEnabled) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Text(
+                            text = if (isLocationEnabled) "Compartiendo ubicación"
+                            else "Ubicación desactivada",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+
+                        Switch(
+                            checked = isLocationEnabled,
+                            onCheckedChange = { enabled ->
+                                viewModel.toggleLocationSharing(enabled)
+                            }
+                        )
+                    }
+
+                    if (isLocationEnabled) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Usuarios online: ${onlineUsers.size}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Lista de usuarios online
+                if (onlineUsers.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp)
+                            .widthIn(max = 200.dp)
+                            .background(
+                                MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                                shape = MaterialTheme.shapes.medium
+                            )
+                            .padding(8.dp)
+                    ) {
+                        Text(
+                            text = "Usuarios Online",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        onlineUsers.forEach { user ->
+                            OnlineUserItem(user)
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+                    }
+                }
+            } else {
+                // Pantalla de permisos
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Permisos de ubicación requeridos",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Esta aplicación necesita acceso a tu ubicación para funcionar correctamente.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(onClick = {
+                        locationPermissionsState.launchMultiplePermissionRequest()
+                    }) {
+                        Text("Otorgar permisos")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun OnlineUserItem(user: User) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (user.profileImageUrl.isNotEmpty()) {
+            AsyncImage(
+                model = user.profileImageUrl,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = user.name.firstOrNull()?.toString() ?: "?",
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = user.name,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(Color.Green)
+        )
+    }
+}
