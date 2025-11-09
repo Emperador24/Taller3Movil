@@ -33,4 +33,21 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             callback(result)
         }
     }
+
+    fun resetPassword(
+        email: String,
+        callback: (Result<Unit>) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = repository.resetPassword(email)
+            callback(result)
+        }
+    }
+
+    fun logout(callback: () -> Unit) {
+        viewModelScope.launch {
+            repository.logoutUser()
+            callback()
+        }
+    }
 }

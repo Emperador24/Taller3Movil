@@ -86,6 +86,17 @@ class FirebaseRepository {
         }
     }
 
+    // Recuperar contraseña
+    suspend fun resetPassword(email: String): Result<Unit> {
+        return try {
+            auth.sendPasswordResetEmail(email).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending password reset email", e)
+            Result.failure(e)
+        }
+    }
+
     // Actualizar estado online
     suspend fun updateUserOnlineStatus(uid: String, isOnline: Boolean) {
         try {
@@ -189,7 +200,6 @@ class FirebaseRepository {
 
             override fun onCancelled(error: DatabaseError) {
                 Log.e(TAG, "Database error: ${error.message}", error.toException())
-                // No cerrar el flow, solo loguear el error
             }
         }
 
@@ -221,7 +231,6 @@ class FirebaseRepository {
 
             override fun onCancelled(error: DatabaseError) {
                 Log.e(TAG, "Database error: ${error.message}", error.toException())
-                // No cerrar el flow, solo loguear el error
             }
         }
 
