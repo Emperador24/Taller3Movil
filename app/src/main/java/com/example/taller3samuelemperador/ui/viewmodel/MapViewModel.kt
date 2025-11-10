@@ -1,6 +1,7 @@
 package com.example.taller3samuelemperador.ui.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.taller3samuelemperador.location.LocationManager
@@ -25,26 +26,34 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
     private var locationJob: Job? = null
 
+    companion object {
+        private const val TAG = "MapViewModel"
+    }
+
     init {
-        observeCurrentUser()
-        observeOnlineUsers()
+        Log.d(TAG, "MapViewModel initialized")
 
         // Marcar usuario como online al iniciar
         viewModelScope.launch {
             repository.currentUser?.uid?.let { uid ->
+                Log.d(TAG, "Setting user $uid as online")
                 repository.updateUserOnlineStatus(uid, true)
             }
         }
+
+        // Iniciar observadores
+        observeCurrentUser()
+        observeOnlineUsers()
     }
 
     private fun observeCurrentUser() {
         viewModelScope.launch {
             repository.observeCurrentUser()
                 .catch { e ->
-                    // Manejar error silenciosamente
-                    e.printStackTrace()
+                    Log.e(TAG, "Error observing current user", e)
                 }
                 .collect { user ->
+                    Log.d(TAG, "Current user updated: ${user?.name}")
                     _currentUser.value = user
                 }
         }
@@ -54,16 +63,20 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.observeOnlineUsers()
                 .catch { e ->
-                    // Manejar error silenciosamente
-                    e.printStackTrace()
+                    Log.e(TAG, "Error observing online users", e)
                 }
                 .collect { users ->
+                    Log.d(TAG, "Online users updated: ${users.size} users")
+                    users.forEach { user ->
+                        Log.d(TAG, "- ${user.name}: isOnline=${user.isOnline}, lat=${user.latitude}, lng=${user.longitude}")
+                    }
                     _onlineUsers.value = users
                 }
         }
     }
 
     fun toggleLocationSharing(enabled: Boolean) {
+        Log.d(TAG, "Toggle location sharing: $enabled")
         _isLocationEnabled.value = enabled
 
         if (enabled) {
@@ -74,7 +87,13 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun startLocationUpdates() {
-        val uid = repository.currentUser?.uid ?: return
+        val uid = repository.currentUser?.uid
+        if (uid == null) {
+            Log.e(TAG, "Cannot start location updates: user is null")
+            return
+        }
+
+        Log.d(TAG, "Starting location updates for user $uid")
 
         // Cancelar job anterior si existe
         locationJob?.cancel()
@@ -83,10 +102,11 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 locationManager.getLocationUpdates()
                     .catch { e ->
-                        e.printStackTrace()
+                        Log.e(TAG, "Error in location updates", e)
                         _isLocationEnabled.value = false
                     }
                     .collect { location ->
+                        Log.d(TAG, "Location updated: ${location.latitude}, ${location.longitude}")
                         repository.updateUserLocation(
                             uid,
                             location.latitude,
@@ -94,13 +114,14 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Exception in location updates", e)
                 _isLocationEnabled.value = false
             }
         }
     }
 
     private fun stopLocationUpdates() {
+        Log.d(TAG, "Stopping location updates")
         locationJob?.cancel()
         locationJob = null
 
@@ -111,13 +132,14 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 // Limpiar ubicación en la base de datos
                 repository.updateUserLocation(uid, 0.0, 0.0)
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Error clearing location", e)
             }
         }
     }
 
     override fun onCleared() {
         super.onCleared()
+        Log.d(TAG, "MapViewModel cleared")
 
         // Detener actualizaciones de ubicación
         if (_isLocationEnabled.value) {
@@ -127,6 +149,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         // Marcar usuario como offline
         viewModelScope.launch {
             repository.currentUser?.uid?.let { uid ->
+                Log.d(TAG, "Setting user $uid as offline")
                 repository.updateUserOnlineStatus(uid, false)
             }
         }

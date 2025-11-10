@@ -216,13 +216,27 @@ class FirebaseRepository {
             override fun onDataChange(snapshot: DataSnapshot) {
                 try {
                     val users = mutableListOf<User>()
+                    val currentUid = currentUser?.uid
+
+                    Log.d(TAG, "Processing ${snapshot.childrenCount} total users")
+
                     snapshot.children.forEach { child ->
-                        child.getValue(User::class.java)?.let { user ->
-                            if (user.isOnline && user.uid != currentUser?.uid) {
-                                users.add(user)
+                        try {
+                            val user = child.getValue(User::class.java)
+                            if (user != null) {
+                                Log.d(TAG, "User ${user.name}: isOnline=${user.isOnline}, uid=${user.uid}, currentUid=$currentUid")
+
+                                if (user.isOnline && user.uid != currentUid) {
+                                    users.add(user)
+                                    Log.d(TAG, "Added online user: ${user.name}")
+                                }
                             }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error parsing user data", e)
                         }
                     }
+
+                    Log.d(TAG, "Emitting ${users.size} online users")
                     trySend(users)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error processing online users", e)
@@ -234,9 +248,11 @@ class FirebaseRepository {
             }
         }
 
+        Log.d(TAG, "Adding ValueEventListener for online users")
         usersRef.addValueEventListener(listener)
 
         awaitClose {
+            Log.d(TAG, "Removing ValueEventListener for online users")
             usersRef.removeEventListener(listener)
         }
     }

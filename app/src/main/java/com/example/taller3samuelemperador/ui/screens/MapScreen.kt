@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -39,6 +40,8 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.pow
+import kotlin.math.sqrt
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -58,6 +61,14 @@ fun MapScreen(
     val currentUser by viewModel.currentUser.collectAsState()
     val onlineUsers by viewModel.onlineUsers.collectAsState()
     val isLocationEnabled by viewModel.isLocationEnabled.collectAsState()
+
+    // Log para debugging
+    LaunchedEffect(onlineUsers) {
+        Log.d("MapScreen", "Online users count: ${onlineUsers.size}")
+        onlineUsers.forEach { user ->
+            Log.d("MapScreen", "User: ${user.name}, Lat: ${user.latitude}, Lng: ${user.longitude}")
+        }
+    }
 
     // Cache de íconos personalizados
     var userMarkerIcons by remember { mutableStateOf<Map<String, BitmapDescriptor>>(emptyMap()) }
@@ -160,16 +171,20 @@ fun MapScreen(
         }
     }
 
-    // Actualizar cámara cuando cambia la ubicación del usuario
+    // Actualizar cámara cuando cambia la ubicación del usuario (solo una vez al inicio)
+    var hasMovedCamera by remember { mutableStateOf(false) }
+
     LaunchedEffect(currentUser?.latitude, currentUser?.longitude) {
         currentUser?.let { user ->
-            if (user.latitude != 0.0 && user.longitude != 0.0) {
+            if (user.latitude != 0.0 && user.longitude != 0.0 && isLocationEnabled && !hasMovedCamera) {
                 cameraPositionState.animate(
                     CameraUpdateFactory.newLatLngZoom(
                         LatLng(user.latitude, user.longitude),
                         15f
-                    )
+                    ),
+                    1000
                 )
+                hasMovedCamera = true
             }
         }
     }
@@ -195,12 +210,12 @@ fun MapScreen(
                     modifier = Modifier.fillMaxSize(),
                     cameraPositionState = cameraPositionState,
                     properties = MapProperties(
-                        isMyLocationEnabled = isLocationEnabled && locationPermissionsState.permissions.any { it.status.isGranted },
+                        isMyLocationEnabled = false, // Deshabilitado para usar nuestros marcadores personalizados
                         mapType = MapType.NORMAL
                     ),
                     uiSettings = MapUiSettings(
                         zoomControlsEnabled = true,
-                        myLocationButtonEnabled = true,
+                        myLocationButtonEnabled = false,
                         compassEnabled = true
                     )
                 ) {
@@ -221,13 +236,14 @@ fun MapScreen(
 
                     // Marcadores de otros usuarios online
                     onlineUsers.forEach { user ->
+                        Log.d("MapScreen", "Drawing marker for ${user.name} at ${user.latitude}, ${user.longitude}")
                         if (user.latitude != 0.0 && user.longitude != 0.0) {
                             Marker(
                                 state = MarkerState(
                                     position = LatLng(user.latitude, user.longitude)
                                 ),
                                 title = user.name,
-                                snippet = "Online",
+                                snippet = "Online - ${user.email}",
                                 icon = userMarkerIcons[user.uid] ?: BitmapDescriptorFactory
                                     .defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
                             )
@@ -271,14 +287,12 @@ fun MapScreen(
                         )
                     }
 
-                    if (isLocationEnabled) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Usuarios online: ${onlineUsers.size}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Usuarios online: ${onlineUsers.size}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
                 // Lista de usuarios online
@@ -345,6 +359,9 @@ fun MapScreen(
     }
 }
 
+// Función de extensión para formatear doubles
+fun Double.format(decimals: Int) = "%.${decimals}f".format(this)
+
 @Composable
 fun OnlineUserItem(user: User) {
     Row(
@@ -381,6 +398,14 @@ fun OnlineUserItem(user: User) {
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1
             )
+            if (user.latitude != 0.0 && user.longitude != 0.0) {
+                Text(
+                    text = "Con ubicación",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1
+                )
+            }
         }
 
         Box(
