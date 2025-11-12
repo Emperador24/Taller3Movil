@@ -2,7 +2,7 @@ package com.example.taller3samuelemperador.repository
 
 import android.net.Uri
 import android.util.Log
-import com.example.taller3samuelemperador.model.User
+import com.example.taller3samuelemperador.model.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.database.*
@@ -254,6 +254,38 @@ class FirebaseRepository {
         awaitClose {
             Log.d(TAG, "Removing ValueEventListener for online users")
             usersRef.removeEventListener(listener)
+        }
+    }
+    // AÑADIR estos métodos a tu FirebaseRepository.kt existente
+
+    // Agregar punto a la ruta del usuario
+    suspend fun addRoutePoint(uid: String, latitude: Double, longitude: Double) {
+        try {
+            val snapshot = usersRef.child(uid).child("routePoints").get().await()
+            val currentPoints = snapshot.children.mapNotNull {
+                it.getValue(RoutePoint::class.java)
+            }.toMutableList()
+
+            // Agregar nuevo punto
+            currentPoints.add(RoutePoint(latitude, longitude, System.currentTimeMillis()))
+
+            // Guardar en BD
+            usersRef.child(uid).child("routePoints")
+                .setValue(currentPoints.map { it.toMap() }).await()
+
+            Log.d(TAG, "Added route point for $uid: ($latitude, $longitude)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error adding route point", e)
+        }
+    }
+
+    // Limpiar ruta del usuario
+    suspend fun clearUserRoute(uid: String) {
+        try {
+            usersRef.child(uid).child("routePoints").setValue(emptyList<RoutePoint>()).await()
+            Log.d(TAG, "Cleared route for $uid")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error clearing route", e)
         }
     }
 }

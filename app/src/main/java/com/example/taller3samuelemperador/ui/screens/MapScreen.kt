@@ -210,7 +210,7 @@ fun MapScreen(
                     modifier = Modifier.fillMaxSize(),
                     cameraPositionState = cameraPositionState,
                     properties = MapProperties(
-                        isMyLocationEnabled = false, // Deshabilitado para usar nuestros marcadores personalizados
+                        isMyLocationEnabled = false,
                         mapType = MapType.NORMAL
                     ),
                     uiSettings = MapUiSettings(
@@ -231,10 +231,22 @@ fun MapScreen(
                                 icon = currentUserIcon ?: BitmapDescriptorFactory
                                     .defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
                             )
+
+                            // NUEVO: Polyline para la ruta del usuario actual
+                            if (user.routePoints.isNotEmpty()) {
+                                Polyline(
+                                    points = user.routePoints.map {
+                                        LatLng(it.latitude, it.longitude)
+                                    },
+                                    color = Color.Blue,
+                                    width = 10f,
+                                    geodesic = true
+                                )
+                            }
                         }
                     }
 
-                    // Marcadores de otros usuarios online
+                    // Marcadores y polylines de otros usuarios online
                     onlineUsers.forEach { user ->
                         Log.d("MapScreen", "Drawing marker for ${user.name} at ${user.latitude}, ${user.longitude}")
                         if (user.latitude != 0.0 && user.longitude != 0.0) {
@@ -247,6 +259,18 @@ fun MapScreen(
                                 icon = userMarkerIcons[user.uid] ?: BitmapDescriptorFactory
                                     .defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
                             )
+
+                            // NUEVO: Polyline para la ruta de otros usuarios
+                            if (user.routePoints.isNotEmpty()) {
+                                Polyline(
+                                    points = user.routePoints.map {
+                                        LatLng(it.latitude, it.longitude)
+                                    },
+                                    color = Color.Green,
+                                    width = 8f,
+                                    geodesic = true
+                                )
+                            }
                         }
                     }
                 }

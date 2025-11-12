@@ -95,7 +95,11 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
         Log.d(TAG, "Starting location updates for user $uid")
 
-        // Cancelar job anterior si existe
+        // Limpiar ruta anterior al iniciar
+        viewModelScope.launch {
+            repository.clearUserRoute(uid)
+        }
+
         locationJob?.cancel()
 
         locationJob = viewModelScope.launch {
@@ -107,7 +111,16 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     .collect { location ->
                         Log.d(TAG, "Location updated: ${location.latitude}, ${location.longitude}")
+
+                        // Actualizar ubicación actual
                         repository.updateUserLocation(
+                            uid,
+                            location.latitude,
+                            location.longitude
+                        )
+
+                        // NUEVO: Agregar punto a la ruta
+                        repository.addRoutePoint(
                             uid,
                             location.latitude,
                             location.longitude
@@ -129,8 +142,11 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
-                // Limpiar ubicación en la base de datos
+                // Limpiar ubicación
                 repository.updateUserLocation(uid, 0.0, 0.0)
+
+                // NUEVO: Limpiar ruta
+                repository.clearUserRoute(uid)
             } catch (e: Exception) {
                 Log.e(TAG, "Error clearing location", e)
             }

@@ -1,4 +1,17 @@
 package com.example.taller3samuelemperador.model
+data class RoutePoint(
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val timestamp: Long = System.currentTimeMillis()
+) {
+    fun toMap(): Map<String, Any> {
+        return mapOf(
+            "latitude" to latitude,
+            "longitude" to longitude,
+            "timestamp" to timestamp
+        )
+    }
+}
 
 data class User(
     val uid: String = "",
@@ -9,7 +22,8 @@ data class User(
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
     val profileImageUrl: String = "",
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val routePoints: List<RoutePoint> = emptyList()
 ) {
     fun toMap(): Map<String, Any> {
         return mapOf(
@@ -21,7 +35,8 @@ data class User(
             "latitude" to latitude,
             "longitude" to longitude,
             "profileImageUrl" to profileImageUrl,
-            "timestamp" to timestamp
+            "timestamp" to timestamp,
+            "routePoints" to routePoints.map { it.toMap() }
         )
     }
 }
